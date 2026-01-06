@@ -2,5 +2,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export type { Auction } from "./Auction";
+export type { AuctionV2 } from "./AuctionV2";
 export type { MockV3Aggregator } from "./MockV3Aggregator";
 export type { XMNFT } from "./XMNFT";

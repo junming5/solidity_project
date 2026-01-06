@@ -2,5 +2,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export { Auction__factory } from "./Auction__factory";
+export { AuctionV2__factory } from "./AuctionV2__factory";
 export { MockV3Aggregator__factory } from "./MockV3Aggregator__factory";
 export { XMNFT__factory } from "./XMNFT__factory";

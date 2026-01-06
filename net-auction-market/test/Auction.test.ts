@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 
 describe("Auction", function () {
   // 部署 Fixture
@@ -21,7 +21,11 @@ describe("Auction", function () {
 
     // 部署 Auction
     const AuctionFactory = await ethers.getContractFactory("Auction");
-    const auction = await AuctionFactory.deploy(await mock.getAddress());
+    const auction = await upgrades.deployProxy(
+      AuctionFactory,
+      [await mock.getAddress()],
+      { kind: "uups" }
+    );
     await auction.waitForDeployment();
 
     // 授权 Auction 操作 NFT

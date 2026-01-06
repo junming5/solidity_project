@@ -26,21 +26,31 @@ import type {
 export interface AuctionInterface extends Interface {
   getFunction(
     nameOrSignature:
+      | "UPGRADE_INTERFACE_VERSION"
       | "auctionCount"
       | "auctions"
       | "bid"
       | "createAuction"
       | "endAuction"
-      | "ethToUsd"
-      | "ethUsdPriceFeed"
+      | "initialize"
+      | "owner"
       | "pendingReturns"
+      | "priceFeed"
+      | "proxiableUUID"
+      | "renounceOwnership"
+      | "transferOwnership"
+      | "upgradeToAndCall"
       | "withdraw"
   ): FunctionFragment;
 
   getEvent(
-    nameOrSignatureOrTopic: "AuctionCreated" | "AuctionEnded" | "BidPlaced"
+    nameOrSignatureOrTopic: "Initialized" | "OwnershipTransferred" | "Upgraded"
   ): EventFragment;
 
+  encodeFunctionData(
+    functionFragment: "UPGRADE_INTERFACE_VERSION",
+    values?: undefined
+  ): string;
   encodeFunctionData(
     functionFragment: "auctionCount",
     values?: undefined
@@ -59,19 +69,37 @@ export interface AuctionInterface extends Interface {
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "ethToUsd",
-    values: [BigNumberish]
+    functionFragment: "initialize",
+    values: [AddressLike]
   ): string;
-  encodeFunctionData(
-    functionFragment: "ethUsdPriceFeed",
-    values?: undefined
-  ): string;
+  encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "pendingReturns",
     values: [AddressLike]
   ): string;
+  encodeFunctionData(functionFragment: "priceFeed", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "proxiableUUID",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "renounceOwnership",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "transferOwnership",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "upgradeToAndCall",
+    values: [AddressLike, BytesLike]
+  ): string;
   encodeFunctionData(functionFragment: "withdraw", values?: undefined): string;
 
+  decodeFunctionResult(
+    functionFragment: "UPGRADE_INTERFACE_VERSION",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "auctionCount",
     data: BytesLike
@@ -83,39 +111,37 @@ export interface AuctionInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "endAuction", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "ethToUsd", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "ethUsdPriceFeed",
+    functionFragment: "pendingReturns",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(functionFragment: "priceFeed", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "proxiableUUID",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "pendingReturns",
+    functionFragment: "renounceOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "transferOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "upgradeToAndCall",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "withdraw", data: BytesLike): Result;
 }
 
-export namespace AuctionCreatedEvent {
-  export type InputTuple = [
-    auctionId: BigNumberish,
-    seller: AddressLike,
-    nft: AddressLike,
-    tokenId: BigNumberish,
-    endTime: BigNumberish
-  ];
-  export type OutputTuple = [
-    auctionId: bigint,
-    seller: string,
-    nft: string,
-    tokenId: bigint,
-    endTime: bigint
-  ];
+export namespace InitializedEvent {
+  export type InputTuple = [version: BigNumberish];
+  export type OutputTuple = [version: bigint];
   export interface OutputObject {
-    auctionId: bigint;
-    seller: string;
-    nft: string;
-    tokenId: bigint;
-    endTime: bigint;
+    version: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -123,21 +149,12 @@ export namespace AuctionCreatedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace AuctionEndedEvent {
-  export type InputTuple = [
-    auctionId: BigNumberish,
-    winner: AddressLike,
-    amountEth: BigNumberish
-  ];
-  export type OutputTuple = [
-    auctionId: bigint,
-    winner: string,
-    amountEth: bigint
-  ];
+export namespace OwnershipTransferredEvent {
+  export type InputTuple = [previousOwner: AddressLike, newOwner: AddressLike];
+  export type OutputTuple = [previousOwner: string, newOwner: string];
   export interface OutputObject {
-    auctionId: bigint;
-    winner: string;
-    amountEth: bigint;
+    previousOwner: string;
+    newOwner: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -145,24 +162,11 @@ export namespace AuctionEndedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace BidPlacedEvent {
-  export type InputTuple = [
-    auctionId: BigNumberish,
-    bidder: AddressLike,
-    amountEth: BigNumberish,
-    amountUsd: BigNumberish
-  ];
-  export type OutputTuple = [
-    auctionId: bigint,
-    bidder: string,
-    amountEth: bigint,
-    amountUsd: bigint
-  ];
+export namespace UpgradedEvent {
+  export type InputTuple = [implementation: AddressLike];
+  export type OutputTuple = [implementation: string];
   export interface OutputObject {
-    auctionId: bigint;
-    bidder: string;
-    amountEth: bigint;
-    amountUsd: bigint;
+    implementation: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -213,6 +217,8 @@ export interface Auction extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
+  UPGRADE_INTERFACE_VERSION: TypedContractMethod<[], [string], "view">;
+
   auctionCount: TypedContractMethod<[], [bigint], "view">;
 
   auctions: TypedContractMethod<
@@ -246,11 +252,33 @@ export interface Auction extends BaseContract {
     "nonpayable"
   >;
 
-  ethToUsd: TypedContractMethod<[ethAmount: BigNumberish], [bigint], "view">;
+  initialize: TypedContractMethod<
+    [_priceFeed: AddressLike],
+    [void],
+    "nonpayable"
+  >;
 
-  ethUsdPriceFeed: TypedContractMethod<[], [string], "view">;
+  owner: TypedContractMethod<[], [string], "view">;
 
   pendingReturns: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
+
+  priceFeed: TypedContractMethod<[], [string], "view">;
+
+  proxiableUUID: TypedContractMethod<[], [string], "view">;
+
+  renounceOwnership: TypedContractMethod<[], [void], "nonpayable">;
+
+  transferOwnership: TypedContractMethod<
+    [newOwner: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
+  upgradeToAndCall: TypedContractMethod<
+    [newImplementation: AddressLike, data: BytesLike],
+    [void],
+    "payable"
+  >;
 
   withdraw: TypedContractMethod<[], [void], "nonpayable">;
 
@@ -258,6 +286,9 @@ export interface Auction extends BaseContract {
     key: string | FunctionFragment
   ): T;
 
+  getFunction(
+    nameOrSignature: "UPGRADE_INTERFACE_VERSION"
+  ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "auctionCount"
   ): TypedContractMethod<[], [bigint], "view">;
@@ -293,72 +324,91 @@ export interface Auction extends BaseContract {
     nameOrSignature: "endAuction"
   ): TypedContractMethod<[auctionId: BigNumberish], [void], "nonpayable">;
   getFunction(
-    nameOrSignature: "ethToUsd"
-  ): TypedContractMethod<[ethAmount: BigNumberish], [bigint], "view">;
+    nameOrSignature: "initialize"
+  ): TypedContractMethod<[_priceFeed: AddressLike], [void], "nonpayable">;
   getFunction(
-    nameOrSignature: "ethUsdPriceFeed"
+    nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "pendingReturns"
   ): TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
   getFunction(
+    nameOrSignature: "priceFeed"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "proxiableUUID"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "renounceOwnership"
+  ): TypedContractMethod<[], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "transferOwnership"
+  ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "upgradeToAndCall"
+  ): TypedContractMethod<
+    [newImplementation: AddressLike, data: BytesLike],
+    [void],
+    "payable"
+  >;
+  getFunction(
     nameOrSignature: "withdraw"
   ): TypedContractMethod<[], [void], "nonpayable">;
 
   getEvent(
-    key: "AuctionCreated"
+    key: "Initialized"
   ): TypedContractEvent<
-    AuctionCreatedEvent.InputTuple,
-    AuctionCreatedEvent.OutputTuple,
-    AuctionCreatedEvent.OutputObject
+    InitializedEvent.InputTuple,
+    InitializedEvent.OutputTuple,
+    InitializedEvent.OutputObject
   >;
   getEvent(
-    key: "AuctionEnded"
+    key: "OwnershipTransferred"
   ): TypedContractEvent<
-    AuctionEndedEvent.InputTuple,
-    AuctionEndedEvent.OutputTuple,
-    AuctionEndedEvent.OutputObject
+    OwnershipTransferredEvent.InputTuple,
+    OwnershipTransferredEvent.OutputTuple,
+    OwnershipTransferredEvent.OutputObject
   >;
   getEvent(
-    key: "BidPlaced"
+    key: "Upgraded"
   ): TypedContractEvent<
-    BidPlacedEvent.InputTuple,
-    BidPlacedEvent.OutputTuple,
-    BidPlacedEvent.OutputObject
+    UpgradedEvent.InputTuple,
+    UpgradedEvent.OutputTuple,
+    UpgradedEvent.OutputObject
   >;
 
   filters: {
-    "AuctionCreated(uint256,address,address,uint256,uint256)": TypedContractEvent<
-      AuctionCreatedEvent.InputTuple,
-      AuctionCreatedEvent.OutputTuple,
-      AuctionCreatedEvent.OutputObject
+    "Initialized(uint64)": TypedContractEvent<
+      InitializedEvent.InputTuple,
+      InitializedEvent.OutputTuple,
+      InitializedEvent.OutputObject
     >;
-    AuctionCreated: TypedContractEvent<
-      AuctionCreatedEvent.InputTuple,
-      AuctionCreatedEvent.OutputTuple,
-      AuctionCreatedEvent.OutputObject
-    >;
-
-    "AuctionEnded(uint256,address,uint256)": TypedContractEvent<
-      AuctionEndedEvent.InputTuple,
-      AuctionEndedEvent.OutputTuple,
-      AuctionEndedEvent.OutputObject
-    >;
-    AuctionEnded: TypedContractEvent<
-      AuctionEndedEvent.InputTuple,
-      AuctionEndedEvent.OutputTuple,
-      AuctionEndedEvent.OutputObject
+    Initialized: TypedContractEvent<
+      InitializedEvent.InputTuple,
+      InitializedEvent.OutputTuple,
+      InitializedEvent.OutputObject
     >;
 
-    "BidPlaced(uint256,address,uint256,uint256)": TypedContractEvent<
-      BidPlacedEvent.InputTuple,
-      BidPlacedEvent.OutputTuple,
-      BidPlacedEvent.OutputObject
+    "OwnershipTransferred(address,address)": TypedContractEvent<
+      OwnershipTransferredEvent.InputTuple,
+      OwnershipTransferredEvent.OutputTuple,
+      OwnershipTransferredEvent.OutputObject
     >;
-    BidPlaced: TypedContractEvent<
-      BidPlacedEvent.InputTuple,
-      BidPlacedEvent.OutputTuple,
-      BidPlacedEvent.OutputObject
+    OwnershipTransferred: TypedContractEvent<
+      OwnershipTransferredEvent.InputTuple,
+      OwnershipTransferredEvent.OutputTuple,
+      OwnershipTransferredEvent.OutputObject
+    >;
+
+    "Upgraded(address)": TypedContractEvent<
+      UpgradedEvent.InputTuple,
+      UpgradedEvent.OutputTuple,
+      UpgradedEvent.OutputObject
+    >;
+    Upgraded: TypedContractEvent<
+      UpgradedEvent.InputTuple,
+      UpgradedEvent.OutputTuple,
+      UpgradedEvent.OutputObject
     >;
   };
 }
