@@ -32,6 +32,7 @@ export interface AuctionInterface extends Interface {
       | "createAuction"
       | "endAuction"
       | "ethToUsd"
+      | "ethUsdPriceFeed"
       | "pendingReturns"
       | "withdraw"
   ): FunctionFragment;
@@ -62,6 +63,10 @@ export interface AuctionInterface extends Interface {
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
+    functionFragment: "ethUsdPriceFeed",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "pendingReturns",
     values: [AddressLike]
   ): string;
@@ -79,6 +84,10 @@ export interface AuctionInterface extends Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "endAuction", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "ethToUsd", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "ethUsdPriceFeed",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "pendingReturns",
     data: BytesLike
@@ -118,13 +127,17 @@ export namespace AuctionEndedEvent {
   export type InputTuple = [
     auctionId: BigNumberish,
     winner: AddressLike,
-    amount: BigNumberish
+    amountEth: BigNumberish
   ];
-  export type OutputTuple = [auctionId: bigint, winner: string, amount: bigint];
+  export type OutputTuple = [
+    auctionId: bigint,
+    winner: string,
+    amountEth: bigint
+  ];
   export interface OutputObject {
     auctionId: bigint;
     winner: string;
-    amount: bigint;
+    amountEth: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -136,13 +149,20 @@ export namespace BidPlacedEvent {
   export type InputTuple = [
     auctionId: BigNumberish,
     bidder: AddressLike,
-    amount: BigNumberish
+    amountEth: BigNumberish,
+    amountUsd: BigNumberish
   ];
-  export type OutputTuple = [auctionId: bigint, bidder: string, amount: bigint];
+  export type OutputTuple = [
+    auctionId: bigint,
+    bidder: string,
+    amountEth: bigint,
+    amountUsd: bigint
+  ];
   export interface OutputObject {
     auctionId: bigint;
     bidder: string;
-    amount: bigint;
+    amountEth: bigint;
+    amountUsd: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -228,6 +248,8 @@ export interface Auction extends BaseContract {
 
   ethToUsd: TypedContractMethod<[ethAmount: BigNumberish], [bigint], "view">;
 
+  ethUsdPriceFeed: TypedContractMethod<[], [string], "view">;
+
   pendingReturns: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
 
   withdraw: TypedContractMethod<[], [void], "nonpayable">;
@@ -273,6 +295,9 @@ export interface Auction extends BaseContract {
   getFunction(
     nameOrSignature: "ethToUsd"
   ): TypedContractMethod<[ethAmount: BigNumberish], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "ethUsdPriceFeed"
+  ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "pendingReturns"
   ): TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
@@ -325,7 +350,7 @@ export interface Auction extends BaseContract {
       AuctionEndedEvent.OutputObject
     >;
 
-    "BidPlaced(uint256,address,uint256)": TypedContractEvent<
+    "BidPlaced(uint256,address,uint256,uint256)": TypedContractEvent<
       BidPlacedEvent.InputTuple,
       BidPlacedEvent.OutputTuple,
       BidPlacedEvent.OutputObject

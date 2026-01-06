@@ -14,6 +14,10 @@ import * as Contracts from ".";
 declare module "hardhat/types/runtime" {
   interface HardhatEthersHelpers extends HardhatEthersHelpersBase {
     getContractFactory(
+      name: "AggregatorV3Interface",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.AggregatorV3Interface__factory>;
+    getContractFactory(
       name: "Ownable",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Ownable__factory>;
@@ -66,11 +70,20 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Auction__factory>;
     getContractFactory(
+      name: "MockV3Aggregator",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.MockV3Aggregator__factory>;
+    getContractFactory(
       name: "XMNFT",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.XMNFT__factory>;
 
     getContractAt(
+      name: "AggregatorV3Interface",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.AggregatorV3Interface>;
+    getContractAt(
       name: "Ownable",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -135,6 +148,11 @@ declare module "hardhat/types/runtime" {
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.Auction>;
+    getContractAt(
+      name: "MockV3Aggregator",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.MockV3Aggregator>;
     getContractAt(
       name: "XMNFT",
       address: string | ethers.Addressable,
@@ -142,6 +160,10 @@ declare module "hardhat/types/runtime" {
     ): Promise<Contracts.XMNFT>;
 
     deployContract(
+      name: "AggregatorV3Interface",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.AggregatorV3Interface>;
+    deployContract(
       name: "Ownable",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.Ownable>;
@@ -193,12 +215,21 @@ declare module "hardhat/types/runtime" {
       name: "Auction",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.Auction>;
+    deployContract(
+      name: "MockV3Aggregator",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.MockV3Aggregator>;
     deployContract(
       name: "XMNFT",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.XMNFT>;
 
     deployContract(
+      name: "AggregatorV3Interface",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.AggregatorV3Interface>;
+    deployContract(
       name: "Ownable",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -263,6 +294,11 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.Auction>;
+    deployContract(
+      name: "MockV3Aggregator",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.MockV3Aggregator>;
     deployContract(
       name: "XMNFT",
       args: any[],

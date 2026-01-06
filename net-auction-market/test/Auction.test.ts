@@ -7,13 +7,20 @@ describe("Auction", function () {
 
     const NFT = await ethers.getContractFactory("XMNFT");
     const nft = await NFT.deploy();
+    // 部署 MockV3Aggregator
 
     const Auction = await ethers.getContractFactory("Auction");
     const auction = await Auction.deploy();
+    // 部署 NFT
+    await nft.waitForDeployment();
 
-    // mint NFT 给卖家
     await nft.mint(seller.address);
     await nft.connect(seller).approve(auction.target, 0);
+    const AuctionFactory = await ethers.getContractFactory("Auction");
+    await auction.waitForDeployment();
+
+    // 授权 Auction 操作 NFT
+    await nft.connect(seller).approve(await auction.getAddress(), 0);
 
     return { seller, bidder1, bidder2, nft, auction };
   }
@@ -23,84 +30,64 @@ describe("Auction", function () {
       const { seller, nft, auction } = await deployFixture();
 
       await auction.connect(seller).createAuction(
-        nft.target,
-        0,
-        3600
-      );
+      await auction.connect(seller).createAuction(await nft.getAddress(), 0, 3600);
 
       const item = await auction.auctions(0);
-
       expect(item.seller).to.equal(seller.address);
-      expect(item.nft).to.equal(nft.target);
+      expect(item.nft).to.equal(await nft.getAddress());
       expect(item.tokenId).to.equal(0);
       expect(item.ended).to.equal(false);
     });
   });
 
-  it("should allow user to place a bid", async function () {
-    const { seller, bidder1, nft, auction } = await deployFixture();
+  describe("bidding", function () {
+    it("should allow users to place bids and update highestBid", async function () {
+      const { seller, bidder1, bidder2, nft, auction } = await deployFixture();
 
-    // 卖家创建拍卖
-    await auction.connect(seller).createAuction(nft.target, 0, 3600);
+      await auction.connect(seller).createAuction(await nft.getAddress(), 0, 3600);
 
-    // bidder1 出价 1 ETH
-    await auction.connect(bidder1).bid(0, {
-      value: ethers.parseEther("1"),
+      await expect(() =>
+        auction.connect(bidder1).bid(0, { value: ethers.parseEther("1") })
+      ).to.changeEtherBalance(bidder1, -ethers.parseEther("1"));
+
+      let item = await auction.auctions(0);
+      expect(item.highestBidder).to.equal(bidder1.address);
+      expect(item.highestBidEth).to.equal(ethers.parseEther("1"));
+
+      await expect(() =>
+        auction.connect(bidder2).bid(0, { value: ethers.parseEther("2") })
+      ).to.changeEtherBalance(bidder2, -ethers.parseEther("2"));
+
+      item = await auction.auctions(0);
+      expect(item.highestBidder).to.equal(bidder2.address);
+      expect(item.highestBidEth).to.equal(ethers.parseEther("2"));
+
+      // bidder1 可以提取退回的出价
+      const pending = await auction.pendingReturns(bidder1.address);
+      expect(pending).to.equal(ethers.parseEther("1"));
     });
-
-    const item = await auction.auctions(0);
-
-    expect(item.highestBidder).to.equal(bidder1.address);
-    expect(item.highestBidEth).to.equal(ethers.parseEther("1"));
-  });
-  
-  it("should record pendingReturns for previous bidder when outbid", async function () {
-    const { seller, bidder1, bidder2, nft, auction } = await deployFixture();
-
-    // 创建拍卖
-    await auction.connect(seller).createAuction(nft.target, 0, 3600);
-
-    // bidder1 出价 1 ETH
-    await auction.connect(bidder1).bid(0, {
-      value: ethers.parseEther("1"),
-    });
-
-    // bidder2 出价 2 ETH
-    await auction.connect(bidder2).bid(0, {
-      value: ethers.parseEther("2"),
-    });
-
-    // bidder1 的钱应进入 pendingReturns
-    const pending = await auction.pendingReturns(bidder1.address);
-
-    expect(pending).to.equal(ethers.parseEther("1"));
   });
 
-  it("should end auction, transfer NFT to winner and pay seller", async function () {
-    const { seller, bidder1, nft, auction } = await deployFixture();
+  describe("endAuction & withdraw", function () {
+    it("should transfer NFT to winner and allow withdraws", async function () {
+      const { seller, bidder1, nft, auction } = await deployFixture();
 
-    // 创建拍卖
-    await auction.connect(seller).createAuction(nft.target, 0, 3600);
+      await auction.connect(seller).createAuction(await nft.getAddress(), 0, 3600);
+      await auction.connect(bidder1).bid(0, { value: ethers.parseEther("1") });
 
-    // bidder1 出价 1 ETH
-    await auction.connect(bidder1).bid(0, {
-      value: ethers.parseEther("1"),
+      // 快进时间 1 小时
+      await ethers.provider.send("evm_increaseTime", [3600]);
+      await ethers.provider.send("evm_mine", []);
+
+      // 结束拍卖
+      await auction.endAuction(0);
+
+      // NFT 属于最高出价者
+      expect(await nft.ownerOf(0)).to.equal(bidder1.address);
+
+      // 卖家 withdraw，使用 changeEtherBalance 自动处理 gas
+      await expect(() => auction.connect(seller).withdraw())
+        .to.changeEtherBalance(seller, ethers.parseEther("1"));
     });
-
-    // 时间快进 1 小时
-    await ethers.provider.send("evm_increaseTime", [3600]);
-    await ethers.provider.send("evm_mine", []);
-
-    // 结束拍卖
-    await auction.endAuction(0);
-
-    // NFT 应该属于 bidder1
-    expect(await nft.ownerOf(0)).to.equal(bidder1.address);
-
-    // 卖家应收到 ETH（进入 pendingReturns）
-    const sellerPending = await auction.pendingReturns(seller.address);
-    expect(sellerPending).to.equal(ethers.parseEther("1"));
   });
-  
 });
-

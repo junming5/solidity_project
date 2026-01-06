@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract Auction {
+interface IPriceFeed {
+    function latestAnswer() external view returns (int256);
+    function decimals() external view returns (uint8);
+}
+
+contract Auction is UUPSUpgradeable, OwnableUpgradeable {
     struct AuctionItem {
         address seller;          // 卖家
         address nft;             // NFT 合约地址
@@ -13,7 +19,7 @@ contract Auction {
         address highestBidder;   // 当前最高出价者
         
         uint256 highestBidEth;   // wei
-        uint256 highestBidUsd;   // USD * 1e18
+        uint256 highestBidUsd;   // 
         
         bool ended;              // 是否已结束
     }
@@ -23,7 +29,17 @@ contract Auction {
 
     mapping(address => uint256) public pendingReturns;
 
-    AggregatorV3Interface public ethUsdPriceFeed;
+    IPriceFeed public priceFeed; // Chainlink 价格预言机
+
+    constructor() {
+        _disableInitializers();
+    }
+    function initialize(address _priceFeed) public initializer {
+        __Ownable_init();
+        priceFeed = IPriceFeed(_priceFeed);
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
     
     event AuctionCreated(
         uint256 indexed auctionId,
@@ -36,18 +52,15 @@ contract Auction {
     event BidPlaced(
         uint256 indexed auctionId,
         address indexed bidder,
-        uint256 amount
+        uint256 amountEth,
+        uint256 amountUsd
     );
 
     event AuctionEnded(
         uint256 indexed auctionId,
         address winner,
-        uint256 amount
+        uint256 amountEth
     );
-
-    constructor(address _ethUsdFeed) {
-        ethUsdPriceFeed = AggregatorV3Interface(_ethUsdFeed);
-    }
 
     function createAuction(
     address nft,
@@ -59,8 +72,7 @@ contract Auction {
         auctionId = auctionCount;
         auctionCount++;
 
-        // 把 NFT 转入拍卖合约（托管）
-        IERC721(nft).transferFrom(msg.sender, address(this), tokenId);
+        IERC721Upgradeable(nft).transferFrom(msg.sender, address(this), tokenId);
 
         auctions[auctionId] = AuctionItem({
             seller: msg.sender,
@@ -89,10 +101,10 @@ contract Auction {
         require(block.timestamp < auction.endTime, "auction ended");
         require(!auction.ended, "auction already ended");
 
+        require(msg.sender != auction.seller, "seller cannot bid");
+
         uint256 usdValue = ethToUsd(msg.value);
         require(usdValue > auction.highestBidUsd, "bid too low");
-
-        require(msg.sender != auction.seller, "seller cannot bid");
 
         // 退回上一个最高价
         if (auction.highestBidder != address(0)) {
@@ -104,7 +116,7 @@ contract Auction {
         auction.highestBidEth = msg.value;
         auction.highestBidUsd = usdValue;
 
-        emit BidPlaced(auctionId, msg.sender, msg.value);
+        emit BidPlaced(auctionId, msg.sender, msg.value, usdValue);
     }
 
     function endAuction(uint256 auctionId) external {
@@ -118,7 +130,7 @@ contract Auction {
 
         if(auction.highestBidder != address(0)) {
             // NFT 给赢家
-            IERC721(auction.nft).transferFrom(
+            IERC721Upgradeable(auction.nft).transferFrom(
                 address(this),
                 auction.highestBidder,
                 auction.tokenId
@@ -128,7 +140,7 @@ contract Auction {
             // payable(auction.seller).transfer(auction.highestBid);
         } else {
             // 没人出价，NFT 退回卖家
-            IERC721(auction.nft).transferFrom(
+            IERC721Upgradeable(auction.nft).transferFrom(
                 address(this),
                 auction.seller,
                 auction.tokenId
@@ -150,16 +162,23 @@ contract Auction {
         (bool ok, ) = msg.sender.call{value: amount}("");
         require(ok, "withdraw failed");
 
-        // payable(msg.sender).transfer(amount);
     }
 
     function ethToUsd(uint256 ethAmount) public view returns (uint256) {
-        (, int256 price,,,) = ethUsdPriceFeed.latestRoundData();
+        int256 price = getEthPriceUSD();
         require(price > 0, "Invalid price");
 
-        uint8 descimals = ethUsdPriceFeed.decimals();
+        uint8 priceDecimals = priceFeed.decimals();
 
-        return ethAmount * uint256(price) / (10 ** descimals);
+        // ethAmount: wei (1e18)
+        // price: USD * 10^priceDecimals
+        // return: USD * 1e18
+        return ethAmount * uint256(price) / (10 ** priceDecimals);
+    }
+
+    // 获取当前 ETH/USD 价格（示例，mock/chainlink 都可）
+    function getEthPriceUSD() public view returns (int256) {
+        return priceFeed.latestAnswer();
     }
 
 }
