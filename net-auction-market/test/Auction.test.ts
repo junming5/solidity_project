@@ -2,21 +2,26 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 
 describe("Auction", function () {
+  // 部署 Fixture
   async function deployFixture() {
     const [seller, bidder1, bidder2] = await ethers.getSigners();
 
-    const NFT = await ethers.getContractFactory("XMNFT");
-    const nft = await NFT.deploy();
     // 部署 MockV3Aggregator
+    const MockFactory = await ethers.getContractFactory("MockV3Aggregator");
+    const mock = await MockFactory.deploy(8, 2000_00000000n);
+    await mock.waitForDeployment();
 
-    const Auction = await ethers.getContractFactory("Auction");
-    const auction = await Auction.deploy();
     // 部署 NFT
+    const NFTFactory = await ethers.getContractFactory("XMNFT");
+    const nft = await NFTFactory.deploy();
     await nft.waitForDeployment();
 
+    // mint NFT 给 seller
     await nft.mint(seller.address);
-    await nft.connect(seller).approve(auction.target, 0);
+
+    // 部署 Auction
     const AuctionFactory = await ethers.getContractFactory("Auction");
+    const auction = await AuctionFactory.deploy(await mock.getAddress());
     await auction.waitForDeployment();
 
     // 授权 Auction 操作 NFT
@@ -29,7 +34,6 @@ describe("Auction", function () {
     it("should create auction successfully", async function () {
       const { seller, nft, auction } = await deployFixture();
 
-      await auction.connect(seller).createAuction(
       await auction.connect(seller).createAuction(await nft.getAddress(), 0, 3600);
 
       const item = await auction.auctions(0);
