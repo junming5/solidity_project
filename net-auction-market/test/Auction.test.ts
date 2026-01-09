@@ -126,6 +126,114 @@ describe("Auction System (V1 + V2)", function () {
       expect(auctionData.highestBidder).to.equal(bidder2.address);  
     });
 
+    it("should refund previous ERC20 bid when outbid by ETH", async function () {
+      const {
+        seller,
+        bidder1,
+        bidder2,
+        auction,
+        nft,
+        erc20,
+        tokenId
+      } = await deployFixture();
+
+      // seller 创建拍卖
+      await nft.connect(seller).approve(auction.target, tokenId);
+      await auction.connect(seller).createAuction(
+        nft.target,
+        tokenId,
+        3600
+      );
+
+      const auctionId = 0;
+
+      // bidder1 使用 ERC20 出价（ERC20/USD = 1）
+      const erc20Amount = ethers.parseEther("100"); // 100 USD
+
+      await erc20.connect(bidder1).approve(
+        auction.target,
+        erc20Amount
+      );
+
+      await auction.connect(bidder1).bidWithERC20(
+        auctionId,
+        erc20.target,
+        erc20Amount
+      );
+
+      // bidder2 用 1 ETH ≈ 2000 USD 顶掉 ERC20
+      await auction.connect(bidder2).bid(auctionId, {
+        value: ethers.parseEther("1")
+      });
+
+      // ERC20 被正确退回
+      const pending = await auction.pendingERC20Returns(
+        erc20.target,
+        bidder1.address
+      );
+
+      expect(pending).to.equal(erc20Amount);
+    });
+    it("should refund previous ETH bid when outbid by ERC20", async function () {
+      const { seller, bidder1, bidder2, auction, nft, erc20, tokenId } = await deployFixture();
+
+      // seller 创建拍卖
+      await nft.connect(seller).approve(auction.target, tokenId);
+      await auction.connect(seller).createAuction(nft.target, tokenId, 3600);
+
+      const auctionId = 0;
+
+      // bidder1 ETH 出价
+      const ethBid = ethers.parseEther("1"); // ≈ 2000 USD
+      await auction.connect(bidder1).bid(auctionId, { value: ethBid });
+
+      // bidder2 ERC20 出价更高 USD
+      const erc20Bid = ethers.parseEther("2500"); // 2500 USD
+      await erc20.connect(bidder2).approve(auction.target, erc20Bid);
+      await auction.connect(bidder2).bidWithERC20(auctionId, erc20.target, erc20Bid);
+
+      // 检查 ETH 被退回到 pendingReturns
+      const pendingEth = await auction.pendingReturns(bidder1.address);
+      expect(pendingEth).to.equal(ethBid);
+    });
+
+    it("should refund previous ETH bid when outbid by higher ETH", async function () {
+      const { seller, bidder1, bidder2, auction, nft, tokenId } = await deployFixture();
+
+      await nft.connect(seller).approve(auction.target, tokenId);
+      await auction.connect(seller).createAuction(nft.target, tokenId, 3600);
+      const auctionId = 0;
+
+      const ethBid1 = ethers.parseEther("1");
+      const ethBid2 = ethers.parseEther("2");
+
+      await auction.connect(bidder1).bid(auctionId, { value: ethBid1 });
+      await auction.connect(bidder2).bid(auctionId, { value: ethBid2 });
+
+      const pendingEth = await auction.pendingReturns(bidder1.address);
+      expect(pendingEth).to.equal(ethBid1);
+    });
+
+    it("should refund previous ERC20 bid when outbid by higher ERC20", async function () {
+      const { seller, bidder1, bidder2, auction, nft, erc20, tokenId } = await deployFixture();
+
+      await nft.connect(seller).approve(auction.target, tokenId);
+      await auction.connect(seller).createAuction(nft.target, tokenId, 3600);
+      const auctionId = 0;
+
+      const erc20Bid1 = ethers.parseEther("1000");
+      const erc20Bid2 = ethers.parseEther("2000");
+
+      await erc20.connect(bidder1).approve(auction.target, erc20Bid1);
+      await auction.connect(bidder1).bidWithERC20(auctionId, erc20.target, erc20Bid1);
+
+      await erc20.connect(bidder2).approve(auction.target, erc20Bid2);
+      await auction.connect(bidder2).bidWithERC20(auctionId, erc20.target, erc20Bid2);
+
+      const pendingERC20 = await auction.pendingERC20Returns(erc20.target, bidder1.address);
+      expect(pendingERC20).to.equal(erc20Bid1);
+    });
+
     it("should end auction and transfer NFT + funds", async function () {
       const { seller, bidder1, auction, nft, tokenId } =
         await deployFixture();
@@ -144,6 +252,61 @@ describe("Auction System (V1 + V2)", function () {
       await auction.endAuction(0);
 
       expect(await nft.ownerOf(tokenId)).to.equal(bidder1.address);
+    });
+
+    it("should revert bid if auction already ended", async function () {
+      const { seller, bidder1, auction, nft, tokenId } =
+        await deployFixture();
+
+      await nft.connect(seller).approve(auction.target, tokenId);
+      await auction.connect(seller).createAuction(nft.target, tokenId, 1);
+
+      // 等拍卖结束
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+
+      // 已结束，再出价应该失败
+      await expect(
+        auction.connect(bidder1).bid(0, {
+          value: ethers.parseEther("1"),
+        })
+      ).to.be.revertedWith("auction ended");
+    });
+
+    it("should refund previous ETH bid when outbid by higher ETH", async function () {
+      const { seller, bidder1, bidder2, auction, nft, tokenId } =
+        await deployFixture();
+
+      await nft.connect(seller).approve(auction.target, tokenId);
+      await auction.connect(seller).createAuction(nft.target, tokenId, 3600);
+
+      // bidder1 ETH 1
+      await auction.connect(bidder1).bid(0, { value: ethers.parseEther("1") });
+
+      // bidder2 ETH 2
+      await auction.connect(bidder2).bid(0, { value: ethers.parseEther("2") });
+
+      const pending = await auction.pendingReturns(bidder1.address);
+      expect(pending).to.equal(ethers.parseEther("1"));
+    });
+
+    it("should refund previous ERC20 bid when outbid by higher ERC20", async function () {
+      const { seller, bidder1, bidder2, auction, nft, tokenId, erc20 } =
+        await deployFixture();
+
+      await nft.connect(seller).approve(auction.target, tokenId);
+      await auction.connect(seller).createAuction(nft.target, tokenId, 3600);
+
+      // bidder1 ERC20 100
+      await erc20.connect(bidder1).approve(auction.target, ethers.parseEther("100"));
+      await auction.connect(bidder1).bidWithERC20(0, erc20.target, ethers.parseEther("100"));
+
+      // bidder2 ERC20 200
+      await erc20.connect(bidder2).approve(auction.target, ethers.parseEther("200"));
+      await auction.connect(bidder2).bidWithERC20(0, erc20.target, ethers.parseEther("200"));
+
+      const pending = await auction.pendingERC20Returns(erc20.target, bidder1.address);
+      expect(pending).to.equal(ethers.parseEther("100"));
     });
   });
 
@@ -184,6 +347,220 @@ describe("Auction System (V1 + V2)", function () {
           value: ethers.parseEther("1")
         })
       ).to.not.be.reverted;
+    });
+  });
+
+  describe("Auction V2 Branch Tests", function () {
+    it("should revert ETH bid below minBidUsd", async function () {
+      const { seller, bidder1, auction, nft, tokenId } = await deployFixture();
+
+      // upgrade to V2
+      const AuctionV2 = await ethers.getContractFactory("AuctionV2");
+      const auctionV2 = await upgrades.upgradeProxy(auction.target, AuctionV2);
+      await auctionV2.initializeV2(ethers.parseEther("1500")); // min 1500 USD
+
+      await nft.connect(seller).approve(auctionV2.target, tokenId);
+      await auctionV2.connect(seller).createAuction(nft.target, tokenId, 3600);
+
+      await expect(
+        auctionV2.connect(bidder1).bid(0, { value: ethers.parseEther("0.5") }) // ≈1000 USD
+      ).to.be.revertedWith("below min bid");
+    });
+    it("should allow initializeV2 with 0 minBidUsd", async function () {
+        const { auction } = await deployFixture();
+
+        const AuctionV2 = await ethers.getContractFactory("AuctionV2");
+        const auctionV2 = await upgrades.upgradeProxy(
+          auction.target,
+          AuctionV2
+        );
+
+        // minBidUsd = 0
+        await auctionV2.initializeV2(0);
+
+        expect(await auctionV2.minBidUsd()).to.equal(0);
+      });
+      
+    it("should revert ERC20 bid below minBidUsd", async function () {
+      const { seller, bidder1, auction, nft, erc20, tokenId } = await deployFixture();
+
+      const AuctionV2 = await ethers.getContractFactory("AuctionV2");
+      const auctionV2 = await upgrades.upgradeProxy(auction.target, AuctionV2);
+      await auctionV2.initializeV2(ethers.parseEther("1500")); // min 1500 USD
+
+      await nft.connect(seller).approve(auctionV2.target, tokenId);
+      await auctionV2.connect(seller).createAuction(nft.target, tokenId, 3600);
+
+      const lowBid = ethers.parseEther("1000"); // < minBidUsd
+      await erc20.connect(bidder1).approve(auctionV2.target, lowBid);
+
+      await expect(
+        auctionV2.connect(bidder1).bidWithERC20(0, erc20.target, lowBid)
+      ).to.be.revertedWith("below min bid");
+    });
+
+    it("should accept ETH bid above minBidUsd", async function () {
+      const { seller, bidder1, auction, nft, tokenId } = await deployFixture();
+
+      const AuctionV2 = await ethers.getContractFactory("AuctionV2");
+      const auctionV2 = await upgrades.upgradeProxy(auction.target, AuctionV2);
+      await auctionV2.initializeV2(ethers.parseEther("1500"));
+
+      await nft.connect(seller).approve(auctionV2.target, tokenId);
+      await auctionV2.connect(seller).createAuction(nft.target, tokenId, 3600);
+
+      await expect(
+        auctionV2.connect(bidder1).bid(0, { value: ethers.parseEther("1") }) // 2000 USD > 1500 USD
+      ).to.not.be.reverted;
+
+      const auctionData = await auctionV2.auctions(0);
+      expect(auctionData.highestBidUsd).to.be.gt(ethers.parseEther("1500"));
+    });
+
+    it("should accept ERC20 bid above minBidUsd", async function () {
+      const { seller, bidder1, auction, nft, erc20, tokenId } = await deployFixture();
+
+      const AuctionV2 = await ethers.getContractFactory("AuctionV2");
+      const auctionV2 = await upgrades.upgradeProxy(auction.target, AuctionV2);
+      await auctionV2.initializeV2(ethers.parseEther("1500"));
+
+      await nft.connect(seller).approve(auctionV2.target, tokenId);
+      await auctionV2.connect(seller).createAuction(nft.target, tokenId, 3600);
+
+      const highBid = ethers.parseEther("2000"); // > minBidUsd
+      await erc20.connect(bidder1).approve(auctionV2.target, highBid);
+
+      await expect(
+        auctionV2.connect(bidder1).bidWithERC20(0, erc20.target, highBid)
+      ).to.not.be.reverted;
+
+      const auctionData = await auctionV2.auctions(0);
+      expect(auctionData.highestBidUsd).to.be.gt(ethers.parseEther("1500"));
+    });
+
+    it("should refund previous bid correctly in V2 after minBidUsd enforced", async function () {
+      const { seller, bidder1, bidder2, auction, nft, erc20, tokenId } = await deployFixture();
+
+      const AuctionV2 = await ethers.getContractFactory("AuctionV2");
+      const auctionV2 = await upgrades.upgradeProxy(auction.target, AuctionV2);
+      await auctionV2.initializeV2(ethers.parseEther("1500"));
+
+      await nft.connect(seller).approve(auctionV2.target, tokenId);
+      await auctionV2.connect(seller).createAuction(nft.target, tokenId, 3600);
+
+      // bidder1 ERC20 出价 2000 USD
+      const bid1 = ethers.parseEther("2000");
+      await erc20.connect(bidder1).approve(auctionV2.target, bid1);
+      await auctionV2.connect(bidder1).bidWithERC20(0, erc20.target, bid1);
+
+      // bidder2 用更高 ETH 出价 2.5 ETH ≈ 5000 USD
+      await auctionV2.connect(bidder2).bid(0, { value: ethers.parseEther("2.5") });
+
+      const pendingERC20 = await auctionV2.pendingERC20Returns(erc20.target, bidder1.address);
+      expect(pendingERC20).to.equal(bid1);
+    });
+
+    it("should allow minBidUsd = 0", async function () {
+      const { seller, bidder1, auction, nft, tokenId } = await deployFixture();
+
+      const AuctionV2 = await ethers.getContractFactory("AuctionV2");
+      const auctionV2 = await upgrades.upgradeProxy(auction.target, AuctionV2);
+      await auctionV2.initializeV2(0); // 0 USD
+
+      await nft.connect(seller).approve(auctionV2.target, tokenId);
+      await auctionV2.connect(seller).createAuction(nft.target, tokenId, 3600);
+
+      await expect(
+        auctionV2.connect(bidder1).bid(0, { value: ethers.parseEther("0.01") })
+      ).to.not.be.reverted;
+    });
+
+    it("should revert ETH bid below minBidUsd in V2", async function () {
+      const { seller, bidder1, auction, nft, tokenId } = await deployFixture();
+
+      const AuctionV2 = await ethers.getContractFactory("AuctionV2");
+      const auctionV2 = await upgrades.upgradeProxy(auction.target, AuctionV2);
+      await auctionV2.initializeV2(ethers.parseEther("1500")); // min USD
+
+      await nft.connect(seller).approve(auctionV2.target, tokenId);
+      await auctionV2.connect(seller).createAuction(nft.target, tokenId, 3600);
+
+      // ETH bid 0.5 < 1500 USD
+      await expect(
+        auctionV2.connect(bidder1).bid(0, { value: ethers.parseEther("0.5") })
+      ).to.be.revertedWith("below min bid");
+    });
+
+    it("should revert ERC20 bid below minBidUsd in V2", async function () {
+      const { seller, bidder1, auction, nft, tokenId, erc20 } = await deployFixture();
+
+      const AuctionV2 = await ethers.getContractFactory("AuctionV2");
+      const auctionV2 = await upgrades.upgradeProxy(auction.target, AuctionV2);
+      await auctionV2.initializeV2(ethers.parseEther("1500")); // min USD
+
+      await nft.connect(seller).approve(auctionV2.target, tokenId);
+      await auctionV2.connect(seller).createAuction(nft.target, tokenId, 3600);
+
+      await erc20.connect(bidder1).approve(auctionV2.target, ethers.parseEther("1000"));
+      await expect(
+        auctionV2.connect(bidder1).bidWithERC20(0, erc20.target, ethers.parseEther("1000"))
+      ).to.be.revertedWith("below min bid");
+    });
+  });
+
+  describe("MockV3Aggregator Edge Cases", function () {
+    it("should return 0 price correctly", async function () {
+      const MockV3Aggregator = await ethers.getContractFactory("MockV3Aggregator");
+      const aggregator = await MockV3Aggregator.deploy(8, 0); // price = 0
+
+      const [, answer] = await aggregator.latestRoundData();
+      expect(answer).to.equal(0);
+    });
+
+    it("should handle small decimals correctly", async function () {
+      const MockV3Aggregator = await ethers.getContractFactory("MockV3Aggregator");
+      const aggregator = await MockV3Aggregator.deploy(2, 12345); // 2 decimals
+
+      const [, answer] = await aggregator.latestRoundData();
+      expect(answer).to.equal(12345);
+      expect(await aggregator.decimals()).to.equal(2);
+    });
+
+    it("should handle large decimals correctly", async function () {
+      const MockV3Aggregator = await ethers.getContractFactory("MockV3Aggregator");
+      const aggregator = await MockV3Aggregator.deploy(
+        18,
+        ethers.parseUnits("2000", 18)
+      );
+
+      const [, answer] = await aggregator.latestRoundData();
+      expect(answer).to.equal(ethers.parseUnits("2000", 18));
+      expect(await aggregator.decimals()).to.equal(18);
+    });
+
+    it("should handle max uint as price (simulate 'negative')", async function () {
+      const { MaxUint256 } = ethers.constants;
+      const MockV3Aggregator = await ethers.getContractFactory("MockV3Aggregator");
+
+      const aggregator = await MockV3Aggregator.deploy(8, MaxUint256);
+      const [, answer] = await aggregator.latestRoundData();
+      expect(answer).to.equal(MaxUint256);
+    });
+
+    it("should integrate with Auction price feed correctly (price = 0)", async function () {
+      const [owner, bidder] = await ethers.getSigners();
+
+      const MockV3Aggregator = await ethers.getContractFactory("MockV3Aggregator");
+      const ethFeed = await MockV3Aggregator.deploy(8, 0); // price = 0
+
+      const Auction = await ethers.getContractFactory("Auction");
+      const auction = await upgrades.deployProxy(Auction, [ethFeed.target], { kind: "uups" });
+
+      expect(await auction.ethPriceFeed()).to.equal(ethFeed.target);
+
+      await expect(
+        auction.connect(bidder).bid(0, { value: ethers.parseEther("1") })
+      ).to.be.revertedWith("bid too low"); // price = 0，USD 计算失败
     });
   });
 });
