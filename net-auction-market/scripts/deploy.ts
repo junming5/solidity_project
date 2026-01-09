@@ -1,42 +1,55 @@
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 
 async function main() {
-  // 1️⃣ 获取默认账户（Hardhat 本地自带的账户列表）
   const [deployer] = await ethers.getSigners();
   console.log("Deploying contracts with account:", deployer.address);
 
-  // 2️⃣ 部署 MockV3Aggregator（模拟价格预言机）
-  // 构造函数参数：小数位、初始价格
-  const MockFactory = await ethers.getContractFactory("MockV3Aggregator");
-  const mock = await MockFactory.deploy(8, 2000_00000000n); // 2000 USD，18位精度
-  await mock.waitForDeployment();
-  console.log("MockV3Aggregator deployed to:", await mock.getAddress());
+  // 1️⃣ 部署 NFT 合约
+  const XMNFT = await ethers.getContractFactory("XMNFT");
+  const nft = await XMNFT.deploy();
+  await nft.waitForDeployment(); // ethers v6 用这个
+  console.log("XMNFT deployed at:", nft.target);
 
-  // 3️⃣ 部署 NFT 合约 XMNFT
-  const NFTFactory = await ethers.getContractFactory("XMNFT");
-  const nft = await NFTFactory.deploy();
-  await nft.waitForDeployment();
-  console.log("XMNFT deployed to:", await nft.getAddress());
+  // 2️⃣ 部署 MockV3Aggregator (ETH/USD) 价格 feed
+  const MockV3Aggregator = await ethers.getContractFactory("MockV3Aggregator");
+  const ethFeed = await MockV3Aggregator.deploy(8, 2000_00000000);
+  await ethFeed.waitForDeployment();
+  console.log("MockV3Aggregator deployed at:", ethFeed.target);
 
-  // 4️⃣ 部署 Auction 合约，需要传 MockV3Aggregator 地址
-  const AuctionFactory = await ethers.getContractFactory("Auction");
-  const auction = await AuctionFactory.deploy(await mock.getAddress());
-  await auction.waitForDeployment();
-  console.log("Auction deployed to:", await auction.getAddress());
+  // 3️⃣ 部署 V1 Auction 合约
+  const Auction = await ethers.getContractFactory("Auction");
+  const auctionV1 = await upgrades.deployProxy(Auction, [ethFeed.target], {
+    kind: "uups",
+  });
+  await auctionV1.waitForDeployment();
+  console.log("Auction V1 deployed at:", auctionV1.target);
 
-  // 5️⃣ 可选：mint 一个 NFT 给自己测试用
-  const tx = await nft.mint(deployer.address);
-  await tx.wait();
-  console.log("Minted NFT tokenId 0 to:", deployer.address);
+  // 4️⃣ mint NFT 给 deployer
+  const tokenId = 1;
+  await nft.mint(deployer.address);
+  console.log(`NFT minted to deployer, tokenId = ${tokenId}`);
 
-  // 6️⃣ 可选：授权 Auction 合约操作 NFT
-  await nft.approve(await auction.getAddress(), 0);
-  console.log("Approved Auction contract to manage tokenId 0");
+  // 5️⃣ approve Auction 合约操作 NFT
+  await nft.approve(auctionV1.target, tokenId);
+  console.log("NFT approved to Auction V1");
 
-  console.log("✅ All contracts deployed and ready!");
+  // 6️⃣ 创建拍卖 (V1)
+  const duration = 3600; // 1 hour
+  await auctionV1.createAuction(nft.target, tokenId, duration);
+  console.log("Auction created in V1");
+
+  // 7️⃣ 升级到 V2
+  const AuctionV2 = await ethers.getContractFactory("AuctionV2");
+  const auctionV2 = await upgrades.upgradeProxy(auctionV1.target, AuctionV2);
+  await auctionV2.waitForDeployment();
+  console.log("Auction upgraded to V2 at:", auctionV2.target);
+
+  // 8️⃣ 初始化 V2 参数，例如设置 minBidUsd
+  const minBidUsd = ethers.parseUnits("50", 8); // $50 min bid
+  await auctionV2.initializeV2(minBidUsd);
+  console.log(`Auction V2 initialized with minBidUsd = ${minBidUsd}`);
 }
 
-// 捕获错误
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
