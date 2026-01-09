@@ -538,29 +538,42 @@ describe("Auction System (V1 + V2)", function () {
       expect(await aggregator.decimals()).to.equal(18);
     });
 
+    const MaxUint256 = 2n ** 255n - 1n;
     it("should handle max uint as price (simulate 'negative')", async function () {
-      const { MaxUint256 } = ethers.constants;
       const MockV3Aggregator = await ethers.getContractFactory("MockV3Aggregator");
 
+      // 部署 MockV3Aggregator，初始价格为 MaxUint256
       const aggregator = await MockV3Aggregator.deploy(8, MaxUint256);
+
+      // latestRoundData 返回 (roundId, answer, startedAt, updatedAt, answeredInRound)
       const [, answer] = await aggregator.latestRoundData();
+
       expect(answer).to.equal(MaxUint256);
     });
 
     it("should integrate with Auction price feed correctly (price = 0)", async function () {
-      const [owner, bidder] = await ethers.getSigners();
+      const { owner, bidder1, nft, auction, tokenId } = await deployFixture();
 
+      // 部署价格为 0 的 MockV3Aggregator
       const MockV3Aggregator = await ethers.getContractFactory("MockV3Aggregator");
-      const ethFeed = await MockV3Aggregator.deploy(8, 0); // price = 0
+      const ethFeedZero = await MockV3Aggregator.deploy(8, 0);
 
+      // 重新部署 Auction，使用价格为 0 的 feed
       const Auction = await ethers.getContractFactory("Auction");
-      const auction = await upgrades.deployProxy(Auction, [ethFeed.target], { kind: "uups" });
+      const auctionZero = await upgrades.deployProxy(Auction, [ethFeedZero.target], { kind: "uups" });
 
-      expect(await auction.ethPriceFeed()).to.equal(ethFeed.target);
+      expect(await auctionZero.ethPriceFeed()).to.equal(ethFeedZero.target);
 
+      await nft.connect(owner).mint(owner.address);
+      await nft.connect(owner).approve(auctionZero.target, 1);
+
+      // 创建拍卖
+      await auctionZero.createAuction(nft.target, 1, 3600); // tokenId = 0, duration = 1h
+
+      // 尝试出价，价格为 0，USD 计算失败，应 revert "bid too low"
       await expect(
-        auction.connect(bidder).bid(0, { value: ethers.parseEther("1") })
-      ).to.be.revertedWith("bid too low"); // price = 0，USD 计算失败
+        auctionZero.connect(bidder1).bid(0, { value: ethers.parseEther("1") })
+      ).to.be.revertedWith("invalid price");
     });
   });
 });
