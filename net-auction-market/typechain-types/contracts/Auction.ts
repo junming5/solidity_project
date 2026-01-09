@@ -30,17 +30,22 @@ export interface AuctionInterface extends Interface {
       | "auctionCount"
       | "auctions"
       | "bid"
+      | "bidWithERC20"
       | "createAuction"
       | "endAuction"
+      | "erc20PriceFeeds"
+      | "ethPriceFeed"
       | "initialize"
       | "owner"
+      | "pendingERC20Returns"
       | "pendingReturns"
-      | "priceFeed"
       | "proxiableUUID"
       | "renounceOwnership"
+      | "setERC20PriceFeed"
       | "transferOwnership"
       | "upgradeToAndCall"
       | "withdraw"
+      | "withdrawERC20"
   ): FunctionFragment;
 
   getEvent(
@@ -61,6 +66,10 @@ export interface AuctionInterface extends Interface {
   ): string;
   encodeFunctionData(functionFragment: "bid", values: [BigNumberish]): string;
   encodeFunctionData(
+    functionFragment: "bidWithERC20",
+    values: [BigNumberish, AddressLike, BigNumberish]
+  ): string;
+  encodeFunctionData(
     functionFragment: "createAuction",
     values: [AddressLike, BigNumberish, BigNumberish]
   ): string;
@@ -69,15 +78,26 @@ export interface AuctionInterface extends Interface {
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
+    functionFragment: "erc20PriceFeeds",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "ethPriceFeed",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "initialize",
     values: [AddressLike]
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
+    functionFragment: "pendingERC20Returns",
+    values: [AddressLike, AddressLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "pendingReturns",
     values: [AddressLike]
   ): string;
-  encodeFunctionData(functionFragment: "priceFeed", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "proxiableUUID",
     values?: undefined
@@ -85,6 +105,10 @@ export interface AuctionInterface extends Interface {
   encodeFunctionData(
     functionFragment: "renounceOwnership",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setERC20PriceFeed",
+    values: [AddressLike, AddressLike]
   ): string;
   encodeFunctionData(
     functionFragment: "transferOwnership",
@@ -95,6 +119,10 @@ export interface AuctionInterface extends Interface {
     values: [AddressLike, BytesLike]
   ): string;
   encodeFunctionData(functionFragment: "withdraw", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "withdrawERC20",
+    values: [AddressLike]
+  ): string;
 
   decodeFunctionResult(
     functionFragment: "UPGRADE_INTERFACE_VERSION",
@@ -107,23 +135,42 @@ export interface AuctionInterface extends Interface {
   decodeFunctionResult(functionFragment: "auctions", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "bid", data: BytesLike): Result;
   decodeFunctionResult(
+    functionFragment: "bidWithERC20",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "createAuction",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "endAuction", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "erc20PriceFeeds",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "ethPriceFeed",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "pendingERC20Returns",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "pendingReturns",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "priceFeed", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "proxiableUUID",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
     functionFragment: "renounceOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "setERC20PriceFeed",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -135,6 +182,10 @@ export interface AuctionInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "withdraw", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "withdrawERC20",
+    data: BytesLike
+  ): Result;
 }
 
 export namespace InitializedEvent {
@@ -224,13 +275,26 @@ export interface Auction extends BaseContract {
   auctions: TypedContractMethod<
     [arg0: BigNumberish],
     [
-      [string, string, bigint, bigint, string, bigint, bigint, boolean] & {
+      [
+        string,
+        string,
+        bigint,
+        bigint,
+        string,
+        bigint,
+        bigint,
+        string,
+        bigint,
+        boolean
+      ] & {
         seller: string;
         nft: string;
         tokenId: bigint;
         endTime: bigint;
         highestBidder: string;
         highestBidEth: bigint;
+        highestBidERC20: bigint;
+        highestBidToken: string;
         highestBidUsd: bigint;
         ended: boolean;
       }
@@ -239,6 +303,12 @@ export interface Auction extends BaseContract {
   >;
 
   bid: TypedContractMethod<[auctionId: BigNumberish], [void], "payable">;
+
+  bidWithERC20: TypedContractMethod<
+    [auctionId: BigNumberish, token: AddressLike, amount: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
 
   createAuction: TypedContractMethod<
     [nft: AddressLike, tokenId: BigNumberish, duration: BigNumberish],
@@ -252,21 +322,35 @@ export interface Auction extends BaseContract {
     "nonpayable"
   >;
 
+  erc20PriceFeeds: TypedContractMethod<[arg0: AddressLike], [string], "view">;
+
+  ethPriceFeed: TypedContractMethod<[], [string], "view">;
+
   initialize: TypedContractMethod<
-    [_priceFeed: AddressLike],
+    [_ethPriceFeed: AddressLike],
     [void],
     "nonpayable"
   >;
 
   owner: TypedContractMethod<[], [string], "view">;
 
-  pendingReturns: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
+  pendingERC20Returns: TypedContractMethod<
+    [arg0: AddressLike, arg1: AddressLike],
+    [bigint],
+    "view"
+  >;
 
-  priceFeed: TypedContractMethod<[], [string], "view">;
+  pendingReturns: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
 
   proxiableUUID: TypedContractMethod<[], [string], "view">;
 
   renounceOwnership: TypedContractMethod<[], [void], "nonpayable">;
+
+  setERC20PriceFeed: TypedContractMethod<
+    [token: AddressLike, feed: AddressLike],
+    [void],
+    "nonpayable"
+  >;
 
   transferOwnership: TypedContractMethod<
     [newOwner: AddressLike],
@@ -281,6 +365,12 @@ export interface Auction extends BaseContract {
   >;
 
   withdraw: TypedContractMethod<[], [void], "nonpayable">;
+
+  withdrawERC20: TypedContractMethod<
+    [token: AddressLike],
+    [void],
+    "nonpayable"
+  >;
 
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
@@ -297,13 +387,26 @@ export interface Auction extends BaseContract {
   ): TypedContractMethod<
     [arg0: BigNumberish],
     [
-      [string, string, bigint, bigint, string, bigint, bigint, boolean] & {
+      [
+        string,
+        string,
+        bigint,
+        bigint,
+        string,
+        bigint,
+        bigint,
+        string,
+        bigint,
+        boolean
+      ] & {
         seller: string;
         nft: string;
         tokenId: bigint;
         endTime: bigint;
         highestBidder: string;
         highestBidEth: bigint;
+        highestBidERC20: bigint;
+        highestBidToken: string;
         highestBidUsd: bigint;
         ended: boolean;
       }
@@ -313,6 +416,13 @@ export interface Auction extends BaseContract {
   getFunction(
     nameOrSignature: "bid"
   ): TypedContractMethod<[auctionId: BigNumberish], [void], "payable">;
+  getFunction(
+    nameOrSignature: "bidWithERC20"
+  ): TypedContractMethod<
+    [auctionId: BigNumberish, token: AddressLike, amount: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
   getFunction(
     nameOrSignature: "createAuction"
   ): TypedContractMethod<
@@ -324,23 +434,40 @@ export interface Auction extends BaseContract {
     nameOrSignature: "endAuction"
   ): TypedContractMethod<[auctionId: BigNumberish], [void], "nonpayable">;
   getFunction(
+    nameOrSignature: "erc20PriceFeeds"
+  ): TypedContractMethod<[arg0: AddressLike], [string], "view">;
+  getFunction(
+    nameOrSignature: "ethPriceFeed"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
     nameOrSignature: "initialize"
-  ): TypedContractMethod<[_priceFeed: AddressLike], [void], "nonpayable">;
+  ): TypedContractMethod<[_ethPriceFeed: AddressLike], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
+    nameOrSignature: "pendingERC20Returns"
+  ): TypedContractMethod<
+    [arg0: AddressLike, arg1: AddressLike],
+    [bigint],
+    "view"
+  >;
+  getFunction(
     nameOrSignature: "pendingReturns"
   ): TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
-  getFunction(
-    nameOrSignature: "priceFeed"
-  ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "proxiableUUID"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "renounceOwnership"
   ): TypedContractMethod<[], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "setERC20PriceFeed"
+  ): TypedContractMethod<
+    [token: AddressLike, feed: AddressLike],
+    [void],
+    "nonpayable"
+  >;
   getFunction(
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
@@ -354,6 +481,9 @@ export interface Auction extends BaseContract {
   getFunction(
     nameOrSignature: "withdraw"
   ): TypedContractMethod<[], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "withdrawERC20"
+  ): TypedContractMethod<[token: AddressLike], [void], "nonpayable">;
 
   getEvent(
     key: "Initialized"

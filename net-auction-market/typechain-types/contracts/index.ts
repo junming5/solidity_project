@@ -3,5 +3,6 @@
 /* eslint-disable */
 export type { Auction } from "./Auction";
 export type { AuctionV2 } from "./AuctionV2";
+export type { MockERC20 } from "./MockERC20";
 export type { MockV3Aggregator } from "./MockV3Aggregator";
 export type { XMNFT } from "./XMNFT";

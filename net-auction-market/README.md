@@ -1,57 +1,67 @@
-# Sample Hardhat 3 Beta Project (`mocha` and `ethers`)
+# NFT Auction Market（NFT 拍卖市场）
 
-This project showcases a Hardhat 3 Beta project using `mocha` for tests and the `ethers` library for Ethereum interactions.
+## 项目简介
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+本项目基于 Hardhat 框架实现了一个支持 **ETH / ERC20 出价的 NFT 拍卖市场**，  
+使用 **Chainlink Price Feed 预言机** 将不同资产统一转换为 USD 价格进行比较，  
+并通过 **UUPS 代理模式** 支持合约升级。
 
-## Project Overview
+---
 
-This example project includes:
+## 技术栈
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using `mocha` and ethers.js
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+- Solidity ^0.8.22
+- Hardhat
+- OpenZeppelin Contracts / Upgrades
+- Chainlink Price Feeds
+- ethers.js (v6)
 
-## Usage
+---
 
-### Running Tests
+## 合约结构说明
 
-To run all the tests in the project, execute the following command:
+### 1️⃣ XMNFT.sol
+NFT 合约，基于 ERC721 标准：
+- 支持 NFT 铸造（仅 owner）
+- 支持标准 ERC721 转移与授权
 
-```shell
+### 2️⃣ Auction.sol（V1）
+拍卖合约（UUPS Proxy）：
+- 创建拍卖（NFT 上架）
+- 支持 ETH 出价
+- 支持 ERC20 出价
+- 使用 Chainlink 预言机将出价统一转换为 USD
+- 拍卖结束后结算 NFT 和资金
+
+### 3️⃣ AuctionV2.sol（升级版本）
+在 V1 基础上新增：
+- 最低出价（USD）限制
+- 初始化函数 `initializeV2`
+- 演示 UUPS 合约升级能力
+
+---
+
+## 核心功能
+
+- 创建 NFT 拍卖
+- ETH / ERC20 出价
+- USD 价格统一比较
+- 拍卖结束自动结算
+- 合约升级（UUPS）
+
+---
+
+## 测试
+
+本项目包含完整的单元测试和集成测试，覆盖以下场景：
+
+- NFT 铸造与授权
+- 创建拍卖
+- ETH / ERC20 出价逻辑
+- 拍卖结束结算
+- 合约升级与新功能验证
+
+运行测试：
+
+```bash
 npx hardhat test
-```
-
-You can also selectively run the Solidity or `mocha` tests:
-
-```shell
-npx hardhat test solidity
-npx hardhat test mocha
-```
-
-### Make a deployment to Sepolia
-
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
-
-To run the deployment to a local chain:
-
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
-```
-
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
-
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
-
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
-```
-
-After setting the variable, you can run the deployment with the Sepolia network:
-
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
-```

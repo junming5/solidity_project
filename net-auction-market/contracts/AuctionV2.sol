@@ -6,11 +6,11 @@ import "./Auction.sol";
 
 contract AuctionV2 is Auction {
 
-    /// @notice 最小出价（USD，精度 1e18）
+    /// @notice 最小出价（USD）
     uint256 public minBidUsd;
 
     /// @notice 新增初始化函数（V2）
-    function initializeV2(uint256 _minBidUsd) external reinitializer(2) {
+    function initializeV2(uint256 _minBidUsd) external reinitializer(2) onlyOwner {
         minBidUsd = _minBidUsd;
     }
 
@@ -27,6 +27,17 @@ contract AuctionV2 is Auction {
 
         // 调用父合约原有逻辑
         super.bid(auctionId);
+    }
+
+    function bidWithERC20(
+        uint256 auctionId,
+        address token,
+        uint256 amount
+    ) public override {
+        uint256 usdValue = erc20ToUsd(token, amount);
+        require(usdValue >= minBidUsd, "below min bid");
+
+        super.bidWithERC20(auctionId, token, amount);
     }
 
     /// @notice 用于验证升级成功
