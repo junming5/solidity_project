@@ -224,13 +224,12 @@ contract Auction is UUPSUpgradeable, OwnableUpgradeable {
         (, int256 price,,,) = feed.latestRoundData();
         require(price > 0, "invalid price");
 
-        uint8 feedDecimals = feed.decimals(); // 8
-        // uint8 tokenDecimals = IERC20Metadata(token).decimals(); // 18
+        uint8 feedDecimals = feed.decimals();
+        // uint8 tokenDecimals = IERC20Metadata(token).decimals();
 
-        // 因为你的 MockERC20 和 ETH 都是 18 位
-        // 统一换算到 18 位 USD 价值的公式：
-        // (数量 * 价格) / 10^feedDecimals
-        // 注意：如果 tokenDecimals 也是 18，(18 - tokenDecimals) 就是 0，10^0 = 1
+        // 统一换算为 8 位精度（匹配 Chainlink USD 精度）
+        // 公式：(数量 * 价格) / (10^tokenDecimals)
+        // 这样无论 token 是 6 位还是 18 位，返回的 USD 都是 8 位精度
         return (amount * uint256(price)) / (10 ** feedDecimals);
     }
 }
