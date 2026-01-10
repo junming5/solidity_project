@@ -7,9 +7,13 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
-contract Auction is UUPSUpgradeable, OwnableUpgradeable {
+/**
+ * @title NFT 拍卖市场 (支持多币种及 Chainlink 预言机)
+ */
+contract Auction is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
     struct AuctionItem {
@@ -17,70 +21,53 @@ contract Auction is UUPSUpgradeable, OwnableUpgradeable {
         address nft;
         uint256 tokenId;
         uint256 endTime;
-
         address highestBidder;
-        
-        uint256 highestBidEth;       // ETH 出价
-        uint256 highestBidERC20;     // ERC20 出价数量
-        address highestBidToken;     // ERC20 代币地址
-
-        uint256 highestBidUsd;       
+        uint256 highestBidEth;       
+        uint256 highestBidERC20;     
+        address highestBidToken;     
+        uint256 highestBidUsd;       // 统一以 8 位精度的 USD 存储
         bool ended;
     }
 
     uint256 public auctionCount;
     mapping(uint256 => AuctionItem) public auctions;
-    // ETH 待提现
     mapping(address => uint256) public pendingReturns;
-    // ERC20 待提现，token => bidder => amount
     mapping(address => mapping(address => uint256)) public pendingERC20Returns;
 
-    // ETH/USD price feed
     AggregatorV3Interface public ethPriceFeed;
-
-    // ERC20/USD price feeds
     mapping(address => AggregatorV3Interface) public erc20PriceFeeds;
 
-    // event AuctionCreated(uint256 indexed auctionId, address seller);
-    // event BidPlaced(uint256 indexed auctionId, address bidder, uint256 usdValue);
-    // event AuctionEnded(uint256 indexed auctionId, address winner);
-    // event Withdraw(address indexed user, uint256 amount);
+    // --- Events ---
+    event AuctionCreated(uint256 indexed auctionId, address indexed seller, uint256 tokenId, uint256 endTime);
+    event BidPlaced(uint256 indexed auctionId, address indexed bidder, uint256 usdValue);
+    event AuctionEnded(uint256 indexed auctionId, address winner, uint256 amountUsd);
+    event Withdraw(address indexed user, uint256 amount);
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
     function initialize(address _ethPriceFeed) public initializer {
         __Ownable_init(msg.sender);
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
         ethPriceFeed = AggregatorV3Interface(_ethPriceFeed);
     }
 
-    function _authorizeUpgrade(address newImplementation)
-        internal
-        override
-        onlyOwner
-    {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    function setERC20PriceFeed(
-        address token,
-        address feed
-    ) external onlyOwner {
-        require(token != address(0), "invalid token");
-        require(feed != address(0), "invalid feed");
+    function setERC20PriceFeed(address token, address feed) external onlyOwner {
+        require(token != address(0) && feed != address(0), "Invalid input");
         erc20PriceFeeds[token] = AggregatorV3Interface(feed);
     }
 
     // 创建拍卖
-    function createAuction(
-        address nft,
-        uint256 tokenId,
-        uint256 duration
-    ) external returns (uint256 auctionId) {
+    function createAuction(address nft, uint256 tokenId, uint256 duration) external returns (uint256 auctionId) {
         require(duration > 0, "duration must be > 0");
-
         auctionId = auctionCount++;
 
-        IERC721(nft).transferFrom(
-            msg.sender,
-            address(this),
-            tokenId
-        );
+        IERC721(nft).transferFrom(msg.sender, address(this), tokenId);
 
         auctions[auctionId] = AuctionItem({
             seller: msg.sender,
@@ -94,16 +81,16 @@ contract Auction is UUPSUpgradeable, OwnableUpgradeable {
             highestBidUsd: 0,
             ended: false
         });
+
+        emit AuctionCreated(auctionId, msg.sender, tokenId, block.timestamp + duration);
     }
 
     // ETH 出价
-    function bid(uint256 auctionId) public payable virtual {
+    function bid(uint256 auctionId) public payable virtual nonReentrant {
         AuctionItem storage auction = auctions[auctionId];
-
         require(block.timestamp < auction.endTime, "auction ended");
         require(!auction.ended, "already ended");
         require(msg.sender != auction.seller, "seller cannot bid");
-        require(msg.value > 0, "no eth sent");
 
         uint256 usdValue = ethToUsd(msg.value);
         require(usdValue > auction.highestBidUsd, "bid too low");
@@ -115,40 +102,34 @@ contract Auction is UUPSUpgradeable, OwnableUpgradeable {
         auction.highestBidERC20 = 0;
         auction.highestBidToken = address(0);
         auction.highestBidUsd = usdValue;
+
+        emit BidPlaced(auctionId, msg.sender, usdValue);
     }
     
     // ERC20 出价
-    function bidWithERC20(
-        uint256 auctionId,
-        address token,
-        uint256 amount
-    ) public virtual {
+    function bidWithERC20(uint256 auctionId, address token, uint256 amount) public virtual nonReentrant {
         AuctionItem storage auction = auctions[auctionId];
-
         require(block.timestamp < auction.endTime, "auction ended");
         require(!auction.ended, "already ended");
         require(msg.sender != auction.seller, "seller cannot bid");
-        require(amount > 0, "amount = 0");
 
         uint256 usdValue = erc20ToUsd(token, amount);
         require(usdValue > auction.highestBidUsd, "bid too low");
 
-        // 转账 ERC20 到合约
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         _refundPreviousBid(auction);
 
-        // 更新最高出价信息
         auction.highestBidder = msg.sender;
         auction.highestBidEth = 0;
         auction.highestBidERC20 = amount;
         auction.highestBidToken = token;
         auction.highestBidUsd = usdValue;
+
+        emit BidPlaced(auctionId, msg.sender, usdValue);
     }
 
     function _refundPreviousBid(AuctionItem storage auction) internal {
         if (auction.highestBidder == address(0)) return;
-
-        // 退回之前的最高出价者
         if (auction.highestBidEth > 0) {
             pendingReturns[auction.highestBidder] += auction.highestBidEth;
         } else if (auction.highestBidERC20 > 0) {
@@ -157,79 +138,56 @@ contract Auction is UUPSUpgradeable, OwnableUpgradeable {
     }
 
     // 结束拍卖
-    function endAuction(uint256 auctionId) external {
+    function endAuction(uint256 auctionId) external nonReentrant {
         AuctionItem storage auction = auctions[auctionId];
-
         require(block.timestamp >= auction.endTime, "not ended");
         require(!auction.ended, "already ended");
 
         auction.ended = true;
 
         if (auction.highestBidder != address(0)) {
-            IERC721(auction.nft).transferFrom(
-                address(this),
-                auction.highestBidder,
-                auction.tokenId
-            );
-            // 将最高出价转给卖家
+            IERC721(auction.nft).transferFrom(address(this), auction.highestBidder, auction.tokenId);
             if (auction.highestBidEth > 0) {
                 pendingReturns[auction.seller] += auction.highestBidEth;
             } else if (auction.highestBidERC20 > 0) {
                 pendingERC20Returns[auction.highestBidToken][auction.seller] += auction.highestBidERC20;
             }
+            emit AuctionEnded(auctionId, auction.highestBidder, auction.highestBidUsd);
         } else {
-            IERC721(auction.nft).transferFrom(
-                address(this),
-                auction.seller,
-                auction.tokenId
-            );
+            IERC721(auction.nft).transferFrom(address(this), auction.seller, auction.tokenId);
+            emit AuctionEnded(auctionId, address(0), 0);
         }
     }
 
-    // 提取 ETH
-    function withdraw() external {
+    // 提现逻辑
+    function withdraw() external nonReentrant {
         uint256 amount = pendingReturns[msg.sender];
         require(amount > 0, "no funds");
-
         pendingReturns[msg.sender] = 0;
         (bool ok, ) = msg.sender.call{value: amount}("");
         require(ok, "withdraw failed");
+        emit Withdraw(msg.sender, amount);
     }
 
-    // 提取 ERC20
-    function withdrawERC20(address token) external {
+    function withdrawERC20(address token) external nonReentrant {
         uint256 amount = pendingERC20Returns[token][msg.sender];
         require(amount > 0, "no funds");
-
         pendingERC20Returns[token][msg.sender] = 0;
-
         IERC20(token).safeTransfer(msg.sender, amount);
     }
     
-    function ethToUsd(uint256 ethAmount) internal view returns (uint256) {
+    function ethToUsd(uint256 ethAmount) public view returns (uint256) {
         (, int256 price,,,) = ethPriceFeed.latestRoundData();
         require(price > 0, "invalid price");
-
-        uint8 feedDecimals = ethPriceFeed.decimals();
-        return (ethAmount * uint256(price)) / (10 ** feedDecimals);
+        return (ethAmount * uint256(price)) / 1e18;
     }
 
-    function erc20ToUsd(
-        address token,
-        uint256 amount
-    ) internal view returns (uint256) {
+    function erc20ToUsd(address token, uint256 amount) public view returns (uint256) {
         require(address(erc20PriceFeeds[token]) != address(0), "unsupported token");
-
         AggregatorV3Interface feed = erc20PriceFeeds[token];
         (, int256 price,,,) = feed.latestRoundData();
         require(price > 0, "invalid price");
-
-        uint8 feedDecimals = feed.decimals();
-        // uint8 tokenDecimals = IERC20Metadata(token).decimals();
-
-        // 统一换算为 8 位精度（匹配 Chainlink USD 精度）
-        // 公式：(数量 * 价格) / (10^tokenDecimals)
-        // 这样无论 token 是 6 位还是 18 位，返回的 USD 都是 8 位精度
-        return (amount * uint256(price)) / (10 ** feedDecimals);
+        uint8 tokenDecimals = IERC20Metadata(token).decimals();
+        return (amount * uint256(price)) / (10 ** tokenDecimals);
     }
 }

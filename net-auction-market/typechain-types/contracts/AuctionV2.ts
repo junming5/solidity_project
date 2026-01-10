@@ -34,7 +34,9 @@ export interface AuctionV2Interface extends Interface {
       | "createAuction"
       | "endAuction"
       | "erc20PriceFeeds"
+      | "erc20ToUsd"
       | "ethPriceFeed"
+      | "ethToUsd"
       | "initialize"
       | "initializeV2"
       | "minBidUsd"
@@ -53,7 +55,14 @@ export interface AuctionV2Interface extends Interface {
   ): FunctionFragment;
 
   getEvent(
-    nameOrSignatureOrTopic: "Initialized" | "OwnershipTransferred" | "Upgraded"
+    nameOrSignatureOrTopic:
+      | "AuctionCreated"
+      | "AuctionEnded"
+      | "BidPlaced"
+      | "Initialized"
+      | "OwnershipTransferred"
+      | "Upgraded"
+      | "Withdraw"
   ): EventFragment;
 
   encodeFunctionData(
@@ -86,8 +95,16 @@ export interface AuctionV2Interface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "erc20ToUsd",
+    values: [AddressLike, BigNumberish]
+  ): string;
+  encodeFunctionData(
     functionFragment: "ethPriceFeed",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "ethToUsd",
+    values: [BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "initialize",
@@ -161,10 +178,12 @@ export interface AuctionV2Interface extends Interface {
     functionFragment: "erc20PriceFeeds",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "erc20ToUsd", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "ethPriceFeed",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "ethToUsd", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "initializeV2",
@@ -212,6 +231,75 @@ export interface AuctionV2Interface extends Interface {
   ): Result;
 }
 
+export namespace AuctionCreatedEvent {
+  export type InputTuple = [
+    auctionId: BigNumberish,
+    seller: AddressLike,
+    tokenId: BigNumberish,
+    endTime: BigNumberish
+  ];
+  export type OutputTuple = [
+    auctionId: bigint,
+    seller: string,
+    tokenId: bigint,
+    endTime: bigint
+  ];
+  export interface OutputObject {
+    auctionId: bigint;
+    seller: string;
+    tokenId: bigint;
+    endTime: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace AuctionEndedEvent {
+  export type InputTuple = [
+    auctionId: BigNumberish,
+    winner: AddressLike,
+    amountUsd: BigNumberish
+  ];
+  export type OutputTuple = [
+    auctionId: bigint,
+    winner: string,
+    amountUsd: bigint
+  ];
+  export interface OutputObject {
+    auctionId: bigint;
+    winner: string;
+    amountUsd: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace BidPlacedEvent {
+  export type InputTuple = [
+    auctionId: BigNumberish,
+    bidder: AddressLike,
+    usdValue: BigNumberish
+  ];
+  export type OutputTuple = [
+    auctionId: bigint,
+    bidder: string,
+    usdValue: bigint
+  ];
+  export interface OutputObject {
+    auctionId: bigint;
+    bidder: string;
+    usdValue: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
 export namespace InitializedEvent {
   export type InputTuple = [version: BigNumberish];
   export type OutputTuple = [version: bigint];
@@ -242,6 +330,19 @@ export namespace UpgradedEvent {
   export type OutputTuple = [implementation: string];
   export interface OutputObject {
     implementation: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace WithdrawEvent {
+  export type InputTuple = [user: AddressLike, amount: BigNumberish];
+  export type OutputTuple = [user: string, amount: bigint];
+  export interface OutputObject {
+    user: string;
+    amount: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -348,7 +449,15 @@ export interface AuctionV2 extends BaseContract {
 
   erc20PriceFeeds: TypedContractMethod<[arg0: AddressLike], [string], "view">;
 
+  erc20ToUsd: TypedContractMethod<
+    [token: AddressLike, amount: BigNumberish],
+    [bigint],
+    "view"
+  >;
+
   ethPriceFeed: TypedContractMethod<[], [string], "view">;
+
+  ethToUsd: TypedContractMethod<[ethAmount: BigNumberish], [bigint], "view">;
 
   initialize: TypedContractMethod<
     [_ethPriceFeed: AddressLike],
@@ -477,8 +586,18 @@ export interface AuctionV2 extends BaseContract {
     nameOrSignature: "erc20PriceFeeds"
   ): TypedContractMethod<[arg0: AddressLike], [string], "view">;
   getFunction(
+    nameOrSignature: "erc20ToUsd"
+  ): TypedContractMethod<
+    [token: AddressLike, amount: BigNumberish],
+    [bigint],
+    "view"
+  >;
+  getFunction(
     nameOrSignature: "ethPriceFeed"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "ethToUsd"
+  ): TypedContractMethod<[ethAmount: BigNumberish], [bigint], "view">;
   getFunction(
     nameOrSignature: "initialize"
   ): TypedContractMethod<[_ethPriceFeed: AddressLike], [void], "nonpayable">;
@@ -538,6 +657,27 @@ export interface AuctionV2 extends BaseContract {
   ): TypedContractMethod<[token: AddressLike], [void], "nonpayable">;
 
   getEvent(
+    key: "AuctionCreated"
+  ): TypedContractEvent<
+    AuctionCreatedEvent.InputTuple,
+    AuctionCreatedEvent.OutputTuple,
+    AuctionCreatedEvent.OutputObject
+  >;
+  getEvent(
+    key: "AuctionEnded"
+  ): TypedContractEvent<
+    AuctionEndedEvent.InputTuple,
+    AuctionEndedEvent.OutputTuple,
+    AuctionEndedEvent.OutputObject
+  >;
+  getEvent(
+    key: "BidPlaced"
+  ): TypedContractEvent<
+    BidPlacedEvent.InputTuple,
+    BidPlacedEvent.OutputTuple,
+    BidPlacedEvent.OutputObject
+  >;
+  getEvent(
     key: "Initialized"
   ): TypedContractEvent<
     InitializedEvent.InputTuple,
@@ -558,8 +698,48 @@ export interface AuctionV2 extends BaseContract {
     UpgradedEvent.OutputTuple,
     UpgradedEvent.OutputObject
   >;
+  getEvent(
+    key: "Withdraw"
+  ): TypedContractEvent<
+    WithdrawEvent.InputTuple,
+    WithdrawEvent.OutputTuple,
+    WithdrawEvent.OutputObject
+  >;
 
   filters: {
+    "AuctionCreated(uint256,address,uint256,uint256)": TypedContractEvent<
+      AuctionCreatedEvent.InputTuple,
+      AuctionCreatedEvent.OutputTuple,
+      AuctionCreatedEvent.OutputObject
+    >;
+    AuctionCreated: TypedContractEvent<
+      AuctionCreatedEvent.InputTuple,
+      AuctionCreatedEvent.OutputTuple,
+      AuctionCreatedEvent.OutputObject
+    >;
+
+    "AuctionEnded(uint256,address,uint256)": TypedContractEvent<
+      AuctionEndedEvent.InputTuple,
+      AuctionEndedEvent.OutputTuple,
+      AuctionEndedEvent.OutputObject
+    >;
+    AuctionEnded: TypedContractEvent<
+      AuctionEndedEvent.InputTuple,
+      AuctionEndedEvent.OutputTuple,
+      AuctionEndedEvent.OutputObject
+    >;
+
+    "BidPlaced(uint256,address,uint256)": TypedContractEvent<
+      BidPlacedEvent.InputTuple,
+      BidPlacedEvent.OutputTuple,
+      BidPlacedEvent.OutputObject
+    >;
+    BidPlaced: TypedContractEvent<
+      BidPlacedEvent.InputTuple,
+      BidPlacedEvent.OutputTuple,
+      BidPlacedEvent.OutputObject
+    >;
+
     "Initialized(uint64)": TypedContractEvent<
       InitializedEvent.InputTuple,
       InitializedEvent.OutputTuple,
@@ -591,6 +771,17 @@ export interface AuctionV2 extends BaseContract {
       UpgradedEvent.InputTuple,
       UpgradedEvent.OutputTuple,
       UpgradedEvent.OutputObject
+    >;
+
+    "Withdraw(address,uint256)": TypedContractEvent<
+      WithdrawEvent.InputTuple,
+      WithdrawEvent.OutputTuple,
+      WithdrawEvent.OutputObject
+    >;
+    Withdraw: TypedContractEvent<
+      WithdrawEvent.InputTuple,
+      WithdrawEvent.OutputTuple,
+      WithdrawEvent.OutputObject
     >;
   };
 }
