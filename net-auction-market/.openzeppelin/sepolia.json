@@ -195,6 +195,11 @@
       "address": "0x958ec561B2B9294Ef0c0C2011909B989d3EA15AF",
       "txHash": "0x863c944d0c89963cd810912dd282512511be8e8f03fe379365eeefe5e7510c5d",
       "kind": "uups"
+    },
+    {
+      "address": "0xAfa7E2Bf988Bc6B030797028581301d140A46828",
+      "txHash": "0xaa358cea60fa360392e2b1bed8a7fec7027ded68b36a9ab6d434ef3ac7e610aa",
+      "kind": "uups"
     }
   ],
   "impls": {
@@ -3863,7 +3868,7 @@
             "label": "auctions",
             "offset": 0,
             "slot": "1",
-            "type": "t_mapping(t_uint256,t_struct(AuctionItem)2435_storage)",
+            "type": "t_mapping(t_uint256,t_struct(AuctionItem)9353_storage)",
             "contract": "Auction",
             "src": "contracts/Auction.sol:33"
           },
@@ -3975,11 +3980,11 @@
             "label": "mapping(address => uint256)",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_uint256,t_struct(AuctionItem)2435_storage)": {
+          "t_mapping(t_uint256,t_struct(AuctionItem)9353_storage)": {
             "label": "mapping(uint256 => struct Auction.AuctionItem)",
             "numberOfBytes": "32"
           },
-          "t_struct(AuctionItem)2435_storage": {
+          "t_struct(AuctionItem)9353_storage": {
             "label": "struct Auction.AuctionItem",
             "members": [
               {
