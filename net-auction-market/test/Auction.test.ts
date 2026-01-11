@@ -71,18 +71,18 @@ describe("NFT 拍卖市场单元测试", function () {
     });
 
     it("应该允许使用 ERC20 代币出价", async function () {
-      // 1. 显式 Mint 一个 NFT 给 owner
+      // 1. Mint 一个 NFT 给 owner
       const mintTx = await nft.mint(owner.address);
       const receipt = await mintTx.wait();
 
-      const tokenId = 0; // 假设这是刚 mint 出来的 ID
+      const tokenId = 0;
 
-      // 2. 授权给拍卖合约 (报错就在这一步，确保 tokenId 存在)
+      // 2. 授权给拍卖合约
       await nft.approve(await auction.getAddress(), tokenId);
 
       // 3. 创建拍卖
       await auction.createAuction(await nft.getAddress(), tokenId, 100000);
-      const auctionId = 0; // 对应 auctionCount
+      const auctionId = 0; 
 
       // 4. 设置 ERC20 喂价 (1 USDT = $1)
       const MockV3 = await ethers.getContractFactory("MockV3Aggregator");
@@ -134,7 +134,7 @@ describe("NFT 拍卖市场单元测试", function () {
     });
 
     it("应该允许用户提取退款", async function () {
-      // 1. 动态准备环境：确保 TokenID 是新鲜的
+      // 1. 动态准备环境：确保 TokenID 是新的
       await nft.mint(owner.address);
       const tokenId = (await nft.balanceOf(owner.address)) - 1n; // 获取最新的 ID
       await nft.approve(await auction.getAddress(), tokenId);
