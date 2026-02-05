@@ -211,18 +211,21 @@ export namespace AuctionCreatedEvent {
   export type InputTuple = [
     auctionId: BigNumberish,
     seller: AddressLike,
+    nftAddress: AddressLike,
     tokenId: BigNumberish,
     endTime: BigNumberish
   ];
   export type OutputTuple = [
     auctionId: bigint,
     seller: string,
+    nftAddress: string,
     tokenId: bigint,
     endTime: bigint
   ];
   export interface OutputObject {
     auctionId: bigint;
     seller: string;
+    nftAddress: string;
     tokenId: bigint;
     endTime: bigint;
   }
@@ -655,7 +658,7 @@ export interface Auction extends BaseContract {
   >;
 
   filters: {
-    "AuctionCreated(uint256,address,uint256,uint256)": TypedContractEvent<
+    "AuctionCreated(uint256,address,address,uint256,uint256)": TypedContractEvent<
       AuctionCreatedEvent.InputTuple,
       AuctionCreatedEvent.OutputTuple,
       AuctionCreatedEvent.OutputObject

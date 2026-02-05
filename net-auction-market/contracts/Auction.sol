@@ -38,7 +38,8 @@ contract Auction is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradea
     mapping(address => AggregatorV3Interface) public erc20PriceFeeds;
 
     // --- Events ---
-    event AuctionCreated(uint256 indexed auctionId, address indexed seller, uint256 tokenId, uint256 endTime);
+    event AuctionCreated(uint256 indexed auctionId, address indexed seller, address indexed nftAddress, uint256 tokenId, uint256 endTime);
+    
     event BidPlaced(uint256 indexed auctionId, address indexed bidder, uint256 usdValue);
     event AuctionEnded(uint256 indexed auctionId, address winner, uint256 amountUsd);
     event Withdraw(address indexed user, uint256 amount);
@@ -82,7 +83,7 @@ contract Auction is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradea
             ended: false
         });
 
-        emit AuctionCreated(auctionId, msg.sender, tokenId, block.timestamp + duration);
+        emit AuctionCreated(auctionId, msg.sender, nft, tokenId, block.timestamp + duration);
     }
 
     // ETH 出价

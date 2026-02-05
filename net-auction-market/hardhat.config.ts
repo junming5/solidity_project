@@ -7,7 +7,11 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 const INFURA_ID = process.env.YOUR_INFURA_PROJECT_ID;
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const PRIVATE_KEY_1 = process.env.PRIVATE_KEY_1;
+const PRIVATE_KEY_2 = process.env.PRIVATE_KEY_2;
+const accounts = [];
+if (PRIVATE_KEY_1) accounts.push(PRIVATE_KEY_1);
+if (PRIVATE_KEY_2) accounts.push(PRIVATE_KEY_2);
 
 const ALCHEMY_KEY = process.env.ALCHEMY_KEY;
 
@@ -25,7 +29,7 @@ const config: HardhatUserConfig = {
   networks: {
     sepolia: {
       url: `https://sepolia.infura.io/v3/${INFURA_ID}`,
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+      accounts: accounts,
       
       // url: `https://rpc.sepolia.org`,
       // accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
@@ -34,6 +38,9 @@ const config: HardhatUserConfig = {
       // url: `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_KEY}`,
       // accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
     },
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY || "",
   },
 };
 
